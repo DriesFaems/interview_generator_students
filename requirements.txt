@@ -1,0 +1,11 @@
+crewai==0.28.8
+crewai-tools
+langchain_openai
+langchain
+langchain_community
+requests
+streamlit
+pysqlite3-binary
+faiss-cpu
+groq
+langchain-groq
