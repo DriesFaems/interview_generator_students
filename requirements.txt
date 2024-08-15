@@ -9,3 +9,4 @@ pysqlite3-binary
 faiss-cpu
 groq
 langchain-groq
+openpyxl
