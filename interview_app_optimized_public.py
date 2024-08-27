@@ -71,7 +71,7 @@ else:
         
         conn.update(worksheet = "Sheet1", data=updated_data)
         
-        groq_api_key = st.secrets["groq_api_key"]
+        groq_api_key = st.secrets["GROQ_API_KEY"]
         os.environ["GROQ_API_KEY"] = groq_api_key
         client = Groq()
         GROQ_LLM = ChatGroq(
