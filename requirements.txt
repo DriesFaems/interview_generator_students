@@ -10,3 +10,4 @@ faiss-cpu
 groq
 langchain-groq
 openpyxl
+streamlit_gsheets

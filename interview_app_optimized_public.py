@@ -12,6 +12,7 @@ import tomllib
 from langchain_groq import ChatGroq
 import pandas as pd
 import datetime
+from streamlit_gsheets import GSheetsConnection
 
 
 # create title for the streamlit app
@@ -27,51 +28,50 @@ st.write(f"""This app is designed to help you conduct customer interviews. It us
 
 # read excell file Access
 
-df = pd.read_excel('Access.xlsx')
+access = st.text_input('Please enter your WHU email address')
 
-access = st.text_input('Please enter the access code', type='password')
+# Establish connection to Google Sheet
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-
-
-#ask user for groq api key in password form
+# Read existing data from the sheet
+data = conn.read(worksheet = "Sheet1", ttl=0)
+accessdata = conn.read(worksheet = "Sheet2")
 
 # check if the access code is correct
 
-accesslist = df['Code'].tolist()
+accesslist = accessdata['Email'].tolist()
 
 if len(access) == 0:
     st.write('')
 elif access not in accesslist:
-    st.write('Access code invalid; Please enter the correct access code')
+    st.write('Access code invalid; Please enter the correct WHU email address')
 else:
     # create a text input for the user to input the name of the customer
 
     painpoint = st.text_input('What is the painpoint, which you want to explore in the interview?')
     customer_pofile = st.text_input('What is the profile of the customer you want to interview?')
-
-    def log_usage(action, file_path='usage_log.xlsx'):
-        df = pd.read_excel(file_path)
+    prior_learnings = st.text_input('What have you learned so far about the painpoint?')
+    
+    if st.button('Start Interview'):
         
         # Create a new record as a DataFrame
         new_record = pd.DataFrame({
             'Timestamp': [datetime.datetime.now()],
             'User': [access],
-            'Action': [action],
+            'Action': ['Clicked on Start Interview'],
             'Painpoint': [painpoint],
             'Customer_Profile': [customer_pofile]
         })
 
         # add new record to the DataFrame
 
-        df = pd.concat([df, new_record], ignore_index=True)
+        updated_data = pd.concat([data, new_record], ignore_index=True)
 
-        # Save the DataFrame back to the Excel file
-        df.to_excel(file_path, index=False)
-
-    if st.button('Start Interview'):
-        # ask for the API key in password form
-        log_usage('Button Clicked')
-        groq_api_key = st.secrets["GROQ_API_KEY"]
+        # Write the updated data back to the Google Sheet
+        
+        conn.update(worksheet = "Sheet1", data=updated_data)
+        
+        groq_api_key = st.secrets["groq_api_key"]
         os.environ["GROQ_API_KEY"] = groq_api_key
         client = Groq()
         GROQ_LLM = ChatGroq(
@@ -109,7 +109,20 @@ else:
         interview_analyzer = Agent(
             role='Analyzing customer interviews',
             goal=f"""Analyze the customer interviews to identify the most important observations regarding the painpoints for the specific customer.""",
-            backstory="""You are a great expert in analyzing customer interviews to identify the most pressing problems that a specific customer is facing.""",
+            backstory="""You are a great expert in analyzing customer interviews to identify what we can learn about the painpoint based on the interview. The learnings should
+            help the user to better understand the exact nature of the painpoint. Your main expertise is on educating the user in what can be learned from the interview""",
+            verbose=True,
+            llm=GROQ_LLM,
+            allow_delegation=False,
+            max_iter=5,
+            memory=True,
+        )
+
+        learnings_updater = Agent(
+            role='Updating learnings',
+            goal=f"""Update the learnings about the painpoint based on the learnings of the interview_analyzer.""",
+            backstory="""You are a great expert in updating the learnings about the painpoint based on the learnings of the interview_analyzer. 
+            You will update the learnings based on the most important observations that are identified by the interview_analyzer""",
             verbose=True,
             llm=GROQ_LLM,
             allow_delegation=False,
@@ -132,15 +145,22 @@ else:
         )
 
         analyze_interview = Task(
-            description=f"""Analyze the customer interview that is executed by the customer_interviewer.""",
-            expected_output='As output, you provide an overview of the most important observations identified in the interviews.',
+            description=f"""Analyze the customer interview that is executed by the customer_interviewer to generate learnings about the painpoint. 
+            Help the user in leveraging the interview to get a better understanding of the painpoint. When analyzing the interview, make sure to focus on aspects such as (i) when does the customer face the pain point, (ii) what is the hardes part about the painpoint, (iii) why is the customer not able to solve the painpoint""",
+            expected_output='As output, you provide an overview of the most important learnings.',
             agent=interview_analyzer
+        )
+
+        update_learnings = Task(
+            description=f"""Update the learnings about the painpoint based on the learnings of the interview_analyzer. Here is a description of the prior learnings: {prior_learnings}""",
+            expected_output='As output, you provide an updated version of the learnings about the painpoint. Make sure to combine the prior learnings with the new learnings and provide one single integrated overview.',
+            agent=learnings_updater
         )
 
         # Instantiate the first crew with a sequential process
         crew = Crew(
-            agents=[interview_question_generator, customer_interviewer, interview_analyzer],
-            tasks=[generate_interview_questions, interview_customer, analyze_interview],
+            agents=[interview_question_generator, customer_interviewer, interview_analyzer, learnings_updater],
+            tasks=[generate_interview_questions, interview_customer, analyze_interview, update_learnings],
             process=Process.sequential,
             full_output=True,
             share_crew=False,
@@ -153,6 +173,7 @@ else:
         st.write(generate_interview_questions.output.raw_output)
         st.write(interview_customer.output.raw_output)
         st.write(analyze_interview.output.raw_output)
+        st.write(update_learnings.output.raw_output)
     
     else:
         st.write('Please click the button to start the interview')
