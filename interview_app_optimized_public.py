@@ -28,7 +28,7 @@ st.write(f"""This app is designed to help you conduct customer interviews. It us
 
 # read excell file Access
 
-access = st.text_input('Please enter your WHU email address')
+access = st.text_input('Please enter your WHU email address').lower()
 
 # Establish connection to Google Sheet
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -157,23 +157,37 @@ else:
             agent=learnings_updater
         )
 
-        # Instantiate the first crew with a sequential process
-        crew = Crew(
-            agents=[interview_question_generator, customer_interviewer, interview_analyzer, learnings_updater],
-            tasks=[generate_interview_questions, interview_customer, analyze_interview, update_learnings],
-            process=Process.sequential,
-            full_output=True,
-            share_crew=False,
-        )
-        # Kick off the crew's work and capture results
-        results = crew.kickoff()
-        
-        # turn generate_interview_question into string and select substring after 'raw=' and before 'pydantic'
+        # Instantiate the crew with a sequential process
+        if prior_learnings == '':
+            crew = Crew(
+                agents=[interview_question_generator, customer_interviewer, interview_analyzer],
+                tasks=[generate_interview_questions, interview_customer, analyze_interview],
+                process=Process.sequential,
+                full_output=True,
+                share_crew=False,
+            )
+            results = crew.kickoff()
+            st.write(generate_interview_questions.output.raw_output)
+            st.write(interview_customer.output.raw_output)
+            st.write(analyze_interview.output.raw_output)
 
-        st.write(generate_interview_questions.output.raw_output)
-        st.write(interview_customer.output.raw_output)
-        st.write(analyze_interview.output.raw_output)
-        st.write(update_learnings.output.raw_output)
+        else:
+            crew = Crew(
+                agents=[interview_question_generator, customer_interviewer, interview_analyzer, learnings_updater],
+                tasks=[generate_interview_questions, interview_customer, analyze_interview, update_learnings],
+                process=Process.sequential,
+                full_output=True,
+                share_crew=False,
+            )
+            # Kick off the crew's work and capture results
+            results = crew.kickoff()
+        
+            # turn generate_interview_question into string and select substring after 'raw=' and before 'pydantic'
+
+            st.write(generate_interview_questions.output.raw_output)
+            st.write(interview_customer.output.raw_output)
+            st.write(analyze_interview.output.raw_output)
+            st.write(update_learnings.output.raw_output)
     
     else:
         st.write('Please click the button to start the interview')
