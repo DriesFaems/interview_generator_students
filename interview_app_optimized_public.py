@@ -48,6 +48,8 @@ elif access not in accesslist:
 else:
     # create a text input for the user to input the name of the customer
 
+    groq_api_key = st.text_input('Please provide your Groq API Key. You can get a free API key at https://console.groq.com/playground', type="password")
+
     painpoint = st.text_input('What is the painpoint, which you want to explore in the interview?')
     customer_pofile = st.text_input('What is the profile of the customer you want to interview?')
     prior_learnings = st.text_input('What have you learned so far about the painpoint?')
@@ -71,7 +73,6 @@ else:
         
         conn.update(worksheet = "Sheet1", data=updated_data)
         
-        groq_api_key = st.secrets["GROQ_API_KEY"]
         os.environ["GROQ_API_KEY"] = groq_api_key
         client = Groq()
         GROQ_LLM = ChatGroq(
